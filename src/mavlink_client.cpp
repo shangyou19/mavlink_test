@@ -46,7 +46,7 @@ bool MavlinkClient::setModeGuided(uint8_t target_sys) {
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
         if (n <= 0) continue;
-        mavlink_message_t rx; mavlink_status_t st;
+        mavlink_message_t rx; mavlink_status_t st{};
         for (ssize_t k=0;k<n;++k) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
@@ -80,7 +80,7 @@ bool MavlinkClient::arm(uint8_t target_sys, uint8_t target_comp, double ack_time
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
         if (n <= 0) break;
-        mavlink_message_t rx; mavlink_status_t st;
+        mavlink_message_t rx; mavlink_status_t st{};
         for (ssize_t k=0;k<n;++k) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
@@ -107,7 +107,7 @@ bool MavlinkClient::waitGlobal(double sec, mavlink_global_position_int_t &out) {
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
         if (n <= 0) continue;
-        mavlink_message_t rx; mavlink_status_t st;
+        mavlink_message_t rx; mavlink_status_t st{};
         for (ssize_t k=0;k<n;++k) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
@@ -126,7 +126,7 @@ bool MavlinkClient::waitRelativeAltGE(float alt_m, double timeout_sec, mavlink_g
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
         if (n <= 0) continue;
-        mavlink_message_t rx; mavlink_status_t st;
+        mavlink_message_t rx; mavlink_status_t st{};
         for (ssize_t k=0;k<n;++k) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
@@ -194,7 +194,7 @@ bool MavlinkClient::autoHover100m(uint8_t target_sys, uint8_t target_comp) {
                 uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
                 ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
                 if (n <= 0) continue;
-                mavlink_message_t rx; mavlink_status_t st;
+                mavlink_message_t rx; mavlink_status_t st{};
                 for (ssize_t k=0;k<n;++k) {
                     if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                         if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
@@ -260,7 +260,7 @@ bool MavlinkClient::setParamInt(const char* name, int32_t value, uint8_t target_
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
         if (n <= 0) continue;
-        mavlink_message_t rx; mavlink_status_t st;
+        mavlink_message_t rx; mavlink_status_t st{};
         for (ssize_t k=0;k<n;++k) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_PARAM_VALUE) {
@@ -284,7 +284,7 @@ void MavlinkClient::drainStatus(double sec) {
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
         if (n <= 0) continue;
-        mavlink_message_t rx; mavlink_status_t st;
+        mavlink_message_t rx; mavlink_status_t st{};
         for (ssize_t k=0;k<n;++k) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_STATUSTEXT) {
@@ -303,7 +303,7 @@ bool MavlinkClient::waitEkfHealthy(double sec) {
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
         if (n <= 0) continue;
-        mavlink_message_t rx; mavlink_status_t st;
+        mavlink_message_t rx; mavlink_status_t st{};
         for (ssize_t k=0;k<n;++k) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_ESTIMATOR_STATUS) {
