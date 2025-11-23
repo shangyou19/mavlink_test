@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<mavlink>
+  <include>common.xml</include>
+  <messages>
+    <message id="512" name="MY_GUIDED_TARGET">
+      <description>Custom guided target for Guided2</description>
+      <field type="float" name="lat">latitude (degrees)</field>
+      <field type="float" name="lon">longitude (degrees)</field>
+      <field type="float" name="alt">altitude (meters AMSL)</field>
+      <field type="float" name="yaw">optional yaw (degrees)</field>
+    </message>
+  </messages>
+</mavlink>

@@ -1,0 +1,4 @@
+/home/user/projects/test_script/build_user/CMakeFiles/generate_dialect.dir
+/home/user/projects/test_script/build_user/CMakeFiles/send_mavlink_cpp.dir
+/home/user/projects/test_script/build_user/CMakeFiles/edit_cache.dir
+/home/user/projects/test_script/build_user/CMakeFiles/rebuild_cache.dir
