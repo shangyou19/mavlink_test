@@ -41,9 +41,7 @@ bool MavlinkClient::setModeGuided(uint8_t target_sys) {
     mavlink_message_t m{};
     mavlink_msg_set_mode_pack(system_id_, component_id_, &m, target_sys, MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 4);
     if (!sendMessage(m)) { perror("sendto set_mode"); return false; }
-    guided_enabled_ = true;
-    custom_mode_ = 4;
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (std::chrono::steady_clock::now() < deadline) {
         uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
         ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
@@ -53,14 +51,21 @@ bool MavlinkClient::setModeGuided(uint8_t target_sys) {
             if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
                 if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
                     mavlink_command_ack_t ack; mavlink_msg_command_ack_decode(&rx, &ack);
-                    if (ack.command == MAV_CMD_DO_SET_MODE && ack.result == MAV_RESULT_ACCEPTED) {
-                        return true;
+                    if (ack.command == MAV_CMD_DO_SET_MODE) {
+                        if (ack.result == MAV_RESULT_ACCEPTED) {
+                            guided_enabled_ = true;
+                            custom_mode_ = 4;
+                            return true;
+                        }
+                        std::fprintf(stderr, "GUIDED set_mode rejected: result=%u\n", (unsigned)ack.result);
+                        return false;
                     }
                 }
             }
         }
     }
-    return true;
+    std::fprintf(stderr, "GUIDED set_mode no ACK within timeout\n");
+    return false;
 }
 
 bool MavlinkClient::arm(uint8_t target_sys, uint8_t target_comp, double ack_timeout_sec, bool force) {
@@ -81,15 +86,19 @@ bool MavlinkClient::arm(uint8_t target_sys, uint8_t target_comp, double ack_time
                 if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
                     mavlink_command_ack_t ack; mavlink_msg_command_ack_decode(&rx, &ack);
                     std::fprintf(stdout, "ARM ACK command=%u result=%u\n", (unsigned)ack.command, (unsigned)ack.result);
-                    if (ack.command == MAV_CMD_COMPONENT_ARM_DISARM && ack.result == MAV_RESULT_ACCEPTED) {
-                        armed_ = true;
+                    if (ack.command == MAV_CMD_COMPONENT_ARM_DISARM) {
+                        if (ack.result == MAV_RESULT_ACCEPTED) {
+                            armed_ = true;
+                            return true;
+                        }
+                        return false;
                     }
-                    return true;
                 }
             }
         }
     }
-    return true; // proceed even without ack
+    std::fprintf(stderr, "ARM no ACK within timeout\n");
+    return false; // require acks to ensure vehicle state
 }
 
 bool MavlinkClient::waitGlobal(double sec, mavlink_global_position_int_t &out) {
@@ -162,39 +171,54 @@ bool MavlinkClient::autoHover100m(uint8_t target_sys, uint8_t target_comp) {
     sendHeartbeat();
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     mavlink_global_position_int_t gp{};
-    waitGlobal(2.0, gp);
+    if (!waitGlobal(2.0, gp)) {
+        std::fprintf(stderr, "No global position received before takeoff\n");
+        return false;
+    }
     {
-        mavlink_message_t m{};
         float p1=0,p2=0,p3=0,p4=0;
         // 传入当前位置经纬度，使用相对高度100m
         float p5 = gp.lat/1e7f;
         float p6 = gp.lon/1e7f;
         float p7 = 100.0f;
-        mavlink_msg_command_long_pack(system_id_, component_id_, &m, target_sys, target_comp, MAV_CMD_NAV_TAKEOFF, 0,
-                                      p1,p2,p3,p4,p5,p6,p7);
-        if (!sendMessage(m)) { perror("sendto takeoff"); return false; }
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         while (std::chrono::steady_clock::now() < deadline) {
-            uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
-            ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
-            if (n <= 0) break;
-            mavlink_message_t rx; mavlink_status_t st;
-            for (ssize_t k=0;k<n;++k) {
-                if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
-                    if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
-                        mavlink_command_ack_t ack; mavlink_msg_command_ack_decode(&rx, &ack);
-                        std::fprintf(stdout, "TAKEOFF ACK command=%u result=%u\n", (unsigned)ack.command, (unsigned)ack.result);
-                        if (ack.result != MAV_RESULT_ACCEPTED) return false;
-                        goto takeoff_ack_done2;
+            mavlink_message_t m{};
+            mavlink_msg_command_long_pack(system_id_, component_id_, &m, target_sys, target_comp, MAV_CMD_NAV_TAKEOFF, 0,
+                                          p1,p2,p3,p4,p5,p6,p7);
+            if (!sendMessage(m)) { perror("sendto takeoff"); return false; }
+
+            auto ack_wait = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+            while (std::chrono::steady_clock::now() < ack_wait) {
+                uint8_t rbuf2[2048]; sockaddr_in r2{}; socklen_t rl2 = sizeof(r2);
+                ssize_t n = ::recvfrom(sock_, rbuf2, sizeof(rbuf2), 0, (sockaddr*)&r2, &rl2);
+                if (n <= 0) continue;
+                mavlink_message_t rx; mavlink_status_t st;
+                for (ssize_t k=0;k<n;++k) {
+                    if (mavlink_parse_char(MAVLINK_COMM_0, rbuf2[k], &rx, &st)) {
+                        if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
+                            mavlink_command_ack_t ack; mavlink_msg_command_ack_decode(&rx, &ack);
+                            if (ack.command == MAV_CMD_NAV_TAKEOFF) {
+                                std::fprintf(stdout, "TAKEOFF ACK command=%u result=%u\n", (unsigned)ack.command, (unsigned)ack.result);
+                                if (ack.result == MAV_RESULT_ACCEPTED) goto takeoff_ack_done2;
+                                return false;
+                            }
+                        }
                     }
                 }
             }
         }
+        std::fprintf(stderr, "TAKEOFF no ACK within timeout\n");
+        return false;
         takeoff_ack_done2:;
     }
     // 等待相对高度接近目标再切换位置保持
     mavlink_global_position_int_t gp_after{};
-    waitRelativeAltGE(95.0f, 10.0, gp_after);
+    if (!waitRelativeAltGE(95.0f, 10.0, gp_after)) {
+        std::fprintf(stderr, "Relative altitude did not reach takeoff target\n");
+        return false;
+    }
     return setPositionTargetGlobalHover(target_sys, target_comp, gp_after, 100.0f);
 }
 void MavlinkClient::sendHeartbeat() {
