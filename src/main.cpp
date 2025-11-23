@@ -10,7 +10,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
-#include "my_guided/mavlink.h"
+#include "mavlink/mavlink.h"
 #include "mavlink_client.h"
 
 static void usage() {

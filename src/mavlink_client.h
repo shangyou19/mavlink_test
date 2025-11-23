@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include "my_guided/mavlink.h"
+#include "mavlink/mavlink.h"
 
 class MavlinkClient {
 public:
