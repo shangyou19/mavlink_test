@@ -152,15 +152,25 @@ bool MavlinkClient::setPositionTargetGlobalHover(uint8_t target_sys, uint8_t tar
 
 bool MavlinkClient::autoHover100m(uint8_t target_sys, uint8_t target_comp) {
     startHeartbeat(1.0f);
+    // 确保可以获取到定位/状态数据
+    requestMessageInterval(MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 200000, target_sys, target_comp);
+    requestMessageInterval(MAVLINK_MSG_ID_ESTIMATOR_STATUS, 200000, target_sys, target_comp);
+    waitEkfHealthy(5.0);
     if (!setModeGuided(target_sys)) return false;
     sendHeartbeat();
     if (!arm(target_sys, target_comp, 1.0, force_arm_)) return false;
     sendHeartbeat();
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    mavlink_global_position_int_t gp{};
+    waitGlobal(2.0, gp);
     {
         mavlink_message_t m{};
-        float p1=0,p2=0,p3=0,p4=0,p5=0,p6=0,p7=100.0f;
-        mavlink_msg_command_long_pack(system_id_, component_id_, &m, target_sys, target_comp, MAV_CMD_NAV_TAKEOFF_LOCAL, 0,
+        float p1=0,p2=0,p3=0,p4=0;
+        // 传入当前位置经纬度，使用相对高度100m
+        float p5 = gp.lat/1e7f;
+        float p6 = gp.lon/1e7f;
+        float p7 = 100.0f;
+        mavlink_msg_command_long_pack(system_id_, component_id_, &m, target_sys, target_comp, MAV_CMD_NAV_TAKEOFF, 0,
                                       p1,p2,p3,p4,p5,p6,p7);
         if (!sendMessage(m)) { perror("sendto takeoff"); return false; }
         auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
@@ -174,6 +184,7 @@ bool MavlinkClient::autoHover100m(uint8_t target_sys, uint8_t target_comp) {
                     if (rx.msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
                         mavlink_command_ack_t ack; mavlink_msg_command_ack_decode(&rx, &ack);
                         std::fprintf(stdout, "TAKEOFF ACK command=%u result=%u\n", (unsigned)ack.command, (unsigned)ack.result);
+                        if (ack.result != MAV_RESULT_ACCEPTED) return false;
                         goto takeoff_ack_done2;
                     }
                 }
@@ -181,9 +192,10 @@ bool MavlinkClient::autoHover100m(uint8_t target_sys, uint8_t target_comp) {
         }
         takeoff_ack_done2:;
     }
-    mavlink_global_position_int_t gp{};
-    waitGlobal(2.0, gp);
-    return setPositionTargetGlobalHover(target_sys, target_comp, gp, 100.0f);
+    // 等待相对高度接近目标再切换位置保持
+    mavlink_global_position_int_t gp_after{};
+    waitRelativeAltGE(95.0f, 10.0, gp_after);
+    return setPositionTargetGlobalHover(target_sys, target_comp, gp_after, 100.0f);
 }
 void MavlinkClient::sendHeartbeat() {
     mavlink_message_t m{};
