@@ -39,7 +39,11 @@ bool MavlinkClient::sendMessage(const mavlink_message_t &msg) {
 
 bool MavlinkClient::setModeGuided(uint8_t target_sys) {
     mavlink_message_t m{};
-    mavlink_msg_set_mode_pack(system_id_, component_id_, &m, target_sys, MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 4);
+    float param1 = MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | MAV_MODE_FLAG_GUIDED_ENABLED;
+    float param2 = 4; // GUIDED custom mode for ArduCopter
+    mavlink_msg_command_long_pack(system_id_, component_id_, &m, target_sys, target_sys,
+                                  MAV_CMD_DO_SET_MODE, 0,
+                                  param1, param2, 0, 0, 0, 0, 0);
     if (!sendMessage(m)) { perror("sendto set_mode"); return false; }
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (std::chrono::steady_clock::now() < deadline) {
